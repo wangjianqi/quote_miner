@@ -91,7 +91,7 @@ def render_card(candidates: list[QuoteCandidate], output_path: Path) -> None:
         y += card_h
 
     # ── 水印 ─────────────────────────────────────────────────────────────
-    wm = "github.com/yourname/quote_miner"
+    wm = "github.com/wangjianqi/quote_miner"
     wm_w = _text_width(draw, wm, font_watermark)
     draw.text((W - PADDING - wm_w, H - 44), wm,
               font=font_watermark, fill=MUTED_COLOR)
