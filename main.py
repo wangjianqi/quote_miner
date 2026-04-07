@@ -1,13 +1,13 @@
 #!/usr/bin/env python3
 """
-quote_miner — 从 Codex / Claude Code 对话日志中提取工程判断金句
+quote_miner — 从 Codex / Claude Code / Cursor 对话日志中提取工程判断金句
 """
 
 import argparse
 import sys
 from pathlib import Path
 
-from src.loader import load_from_file, load_from_codex, load_from_claude
+from src.loader import load_from_file, load_from_codex, load_from_claude, load_from_cursor
 from src.sentence_splitter import split_sentences
 from src.filters import filter_sentences
 from src.scorer import score_sentence
@@ -55,13 +55,14 @@ def build_candidates(raw_text_blocks: list[dict], role_filter: str) -> list[Quot
 
 def main():
     parser = argparse.ArgumentParser(
-        description="从 Codex / Claude Code 对话日志中提取工程判断金句",
+        description="从 Codex / Claude Code / Cursor 对话日志中提取工程判断金句",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 示例:
   python main.py --input chat.txt
   python main.py --source codex --top 20
   python main.py --source claude --category risk_control
+  python main.py --source cursor --category risk_control
   python main.py --input log.jsonl --role assistant --render-card
         """
     )
@@ -69,7 +70,7 @@ def main():
     # 输入来源
     group = parser.add_mutually_exclusive_group(required=True)
     group.add_argument("--input", metavar="FILE", help="读取 txt / md / jsonl 文件")
-    group.add_argument("--source", choices=["codex", "claude"], help="自动扫描本地日志目录")
+    group.add_argument("--source", choices=["codex", "claude", "cursor"], help="自动扫描本地日志目录")
 
     # 过滤选项
     parser.add_argument("--role", choices=["all", "user", "assistant"], default="all",
@@ -93,8 +94,10 @@ def main():
         raw_blocks = load_from_file(Path(args.input))
     elif args.source == "codex":
         raw_blocks = load_from_codex()
-    else:
+    elif args.source == "claude":
         raw_blocks = load_from_claude()
+    else:
+        raw_blocks = load_from_cursor()
 
     if not raw_blocks:
         print("❌ 未找到任何可解析的内容，请检查输入路径或数据源。", file=sys.stderr)

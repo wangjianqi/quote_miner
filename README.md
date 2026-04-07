@@ -92,20 +92,21 @@ python main.py --input chat.txt --output-dir my_output
 | `--input file.jsonl` | JSONL 格式日志（Codex / Claude Code 原始格式） |
 | `--source codex` | 自动扫描 `~/.codex/sessions/` 下所有 jsonl |
 | `--source claude` | 自动扫描 `~/.claude/` 下所有 jsonl 和 txt |
+| `--source cursor` | 自动扫描 `~/.config/Cursor/User/workspaceStorage/` 下所有 SQLite state.vscdb |
 
 ---
 
 ## 完整命令参考
 
 ```
-usage: main.py [-h] (--input FILE | --source {codex,claude})
+usage: main.py [-h] (--input FILE | --source {codex,claude,cursor})
                [--role {all,user,assistant}]
                [--category {decision,risk_control,developer_style,general,all}]
                [--top N] [--render-card] [--output-dir DIR]
 
 选项:
   --input FILE          读取 txt / md / jsonl 文件
-  --source {codex,claude}
+  --source {codex,claude,cursor}
                         自动扫描本地日志目录
   --role {all,user,assistant}
                         只提取指定角色的发言（默认: all）
@@ -171,7 +172,8 @@ quote_miner/
 
 ## 后续规划
 
-- [ ] 支持更多 JSONL schema（Cursor、Continue 等）
+- [x] 支持 Cursor 数据源（SQLite state.vscdb）
+- [ ] 支持更多 JSONL schema（Continue 等）
 - [ ] 句子去重增强（语义级别）
 - [ ] 支持批量导出为 CSV
 - [ ] 支持 --min-score 阈值过滤
