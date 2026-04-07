@@ -1,0 +1,9 @@
+{"type": "message", "role": "user", "content": "这个 repository 层现在直接被 controller 调用，我想加一个 service 层进来。"}
+{"type": "message", "role": "assistant", "content": "可以，但第一版只做最小改动。先把 service 层加进来，不要动 repository 层的逻辑，也不要改 controller 的调用方式，只是在中间加一个转发层。等结构稳了再慢慢把业务逻辑往 service 层迁移。"}
+{"type": "message", "role": "user", "content": "这样的话 service 层岂不是很薄？"}
+{"type": "message", "role": "assistant", "content": "对，第一刀就是这么设计的。先把层次分开，功能再慢慢往里填。优先保持调用链不断，不要因为重构影响现有功能的稳定性。这一版不动外部行为，先把内部边界收住。"}
+{"type": "message", "role": "user", "content": "有没有风险？"}
+{"type": "message", "role": "assistant", "content": "风险主要在中间层加错了导致性能下降，或者改错了参数映射。所以第一步要写好单元测试，保证入参出参的映射没有问题。另外做好回滚方案，万一有问题能快速切回去。不要让这次重构成为一个无法回滚的操作。"}
+{"role": "user", "content": "我在想是不是直接用 facade pattern 更合适？"}
+{"role": "assistant", "content": "取决于调用方有多少个。如果只有一个 controller 在用，facade 没必要，直接加 service 层就行。如果多个地方都在调用 repository，那 facade 是合理的，可以统一封装调用入口，隐藏内部实现细节。核心原则是：不要为了用设计模式而用，解决实际问题才是目的。"}
+{"messages": [{"role": "user", "content": "这个接口改完之后怎么验证没问题？"}, {"role": "assistant", "content": "分三步验证：第一步单测覆盖核心逻辑，第二步在 staging 环境跑一遍完整流程，第三步灰度发布，先放一小部分流量进来观察。任何一步出问题都要能快速回滚，不能让风险扩散到生产环境。"}]}

@@ -1,0 +1,17 @@
+工程判断金句 / Engineering Quotes
+==================================================
+
+1. 优先保持调用链不断，不要因为重构影响现有功能的稳定性。
+   [风险控制] score=18.5 role=assistant
+
+2. 不要让这次重构成为一个无法回滚的操作。
+   [风险控制] score=14.0 role=assistant
+
+3. 先把 service 层加进来，不要动 repository 层的逻辑，也不要改 controller 的调用方式，只是在中间加一个转发层。
+   [风险控制] score=13.0 role=assistant
+
+4. 任何一步出问题都要能快速回滚，不能让风险扩散到生产环境。
+   [风险控制] score=11.0 role=assistant
+
+5. 另外做好回滚方案，万一有问题能快速切回去。
+   [风险控制] score=8.0 role=assistant

@@ -1,0 +1,5 @@
+# quote_miner 依赖
+# 核心功能只使用 Python 标准库，无需额外安装。
+# 仅生成图片卡片时需要 Pillow：
+
+Pillow>=9.0.0   # 可选，仅 --render-card 功能需要

@@ -1,0 +1,51 @@
+user: 这个接口现在有两个地方在用，我想改一下入参，怎么搞比较安全？
+
+assistant: 第一刀只做收口，不改协议和对外接口。先在内部加一个兼容层，把新旧两种入参都接住，等调用方都切过来之后再清理旧逻辑。
+
+user: 那旧的逻辑要不要同时删掉？
+
+assistant: 不要急着删。先兼容旧逻辑，后面再慢慢清理。这一版的目标是不动外部行为，先把内部边界收住，减少对调用方的影响。
+
+user: 好的，那我先加个 adapter 吧。
+
+assistant: 对，用 adapter 隔离变化是对的。尽量把风险压在实现层，不要扩散到调用方。这个边界一旦破了，后面回滚会很麻烦。
+
+user: 这个 service 里面现在耦合了太多东西，我想拆一下。
+
+assistant: 可以，但要分步来。第一步先把最稳定的部分抽离出去，不要一次性重构整个 service。我的思路是：先识别出哪些是核心 domain 逻辑，哪些是 infrastructure，然后分层下沉。优先保持接口不变，内部慢慢解耦。
+
+user: 万一拆出问题怎么办？
+
+assistant: 所以要做好回滚方案。每一步都要是可回滚的，不要搞大爆炸式重构。拆分的时候注意协议兼容性，对外接口不变是底线。
+
+user: 我不想引入太多新的依赖。
+
+assistant: 这个方向是对的。只做必要的封装，不要过度抽象。我主要是想先把内部的混乱收拢，而不是引入新的复杂度。如果一个 facade 能解决问题，就不用 repository pattern。
+
+user: 好的收到
+
+assistant: 好的，我们就按这个策略来。记住：这一版不动外部行为，先把内部边界收住。风险控制优先，重构的事情可以分多步来做。
+
+user: 这个功能上线之后稳定性怎么保证？
+
+assistant: 要有兜底机制。核心链路上做好降级，万一出问题能快速切回旧逻辑。不要让一个实验性功能影响主流程的稳定性。
+
+user: cd /home/user/project
+
+assistant: ls -la
+
+user: 我觉得这个模块需要一个统一的入口，现在调用太分散了。
+
+assistant: 对，可以做一个 gateway 或者 facade 来收口调用链。这样对外只暴露一个接口，内部可以随时替换实现层，不影响上层业务。
+
+user: https://docs.example.com/api/v2
+
+assistant: {"status": "ok", "code": 200}
+
+user: INFO 2024-01-15 14:30:22 Starting server on port 8080
+
+assistant: java.lang.NullPointerException at com.example.Service.process(Service.java:42)
+
+user: 这个方案的核心原则是什么？
+
+assistant: 说白了就是：约束变化的边界，把风险隔离在最小范围内。架构层面的每一个决策，本质上都是在控制复杂度扩散的速度。
