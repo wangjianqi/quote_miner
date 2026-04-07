@@ -28,7 +28,7 @@
 
 ```bash
 # 克隆项目
-git clone https://github.com/yourname/quote_miner
+git clone https://github.com/wangjianqi/quote_miner.git
 cd quote_miner
 
 # 无需额外安装（核心功能使用 Python 标准库）
