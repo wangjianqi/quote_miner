@@ -10,7 +10,7 @@ from pathlib import Path
 
 from src.loader import load_from_file, load_from_codex, load_from_claude, load_from_cursor
 from src.sentence_splitter import split_sentences
-from src.filters import filter_sentences
+from src.filters import filter_sentences, normalize_sentence
 from src.scorer import score_sentence
 from src.classifier import classify_sentence
 from src.exporter import export_txt, export_md, print_terminal
@@ -33,18 +33,18 @@ def build_candidates(raw_text_blocks: list[dict], role_filter: str) -> list[Quot
 
         for sent in filtered:
             # 去重
-            key = sent.strip()
+            key = normalize_sentence(sent)
             if key in seen:
                 continue
             seen.add(key)
 
-            score = score_sentence(sent)
+            score = score_sentence(key)
             if score <= 0:
                 continue
 
-            category = classify_sentence(sent)
+            category = classify_sentence(key)
             candidates.append(QuoteCandidate(
-                text=sent.strip(),
+                text=key,
                 score=score,
                 category=category,
                 role=role,

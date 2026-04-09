@@ -37,6 +37,13 @@ def parse_jsonl_line(line: str, source: str = "") -> list[dict]:
     if not isinstance(obj, dict):
         return []
 
+    # ── Schema 0: Codex Desktop session event 包装 ─────────────────────
+    # {"type": "response_item"|"event_msg", "payload": {...}}
+    if "payload" in obj and isinstance(obj["payload"], dict):
+        wrapped = _parse_wrapped_session_event(obj, source=source)
+        if wrapped is not None:
+            return wrapped
+
     blocks: list[dict] = []
 
     # ── Schema 1: Codex 格式 ──────────────────────────────────────────
@@ -83,6 +90,48 @@ def parse_jsonl_line(line: str, source: str = "") -> list[dict]:
         blocks.append({"role": "unknown", "text": "\n".join(text_parts), "source": source})
 
     return blocks
+
+
+def _parse_wrapped_session_event(obj: dict, source: str = "") -> list[dict] | None:
+    """
+    解析 Codex Desktop 等 session event 包装格式。
+
+    只提取真正的对话消息，忽略 session_meta / turn_context / reasoning /
+    function_call / function_call_output / token_count 等运行时噪音。
+    """
+    top_type = obj.get("type")
+    payload = obj.get("payload")
+    if not isinstance(payload, dict):
+        return None
+
+    # event_msg: 只保留用户原始输入
+    if top_type == "event_msg":
+        payload_type = payload.get("type")
+        if payload_type == "user_message":
+            text = str(payload.get("message", "")).strip()
+            return [{"role": "user", "text": text, "source": source}] if text else []
+        return []
+
+    # response_item: 只保留 assistant 正式消息
+    if top_type == "response_item":
+        if payload.get("type") != "message":
+            return []
+
+        role = payload.get("role", "unknown")
+        # 只保留 assistant 正文，忽略 developer/system 注入与 user 包装消息
+        if role != "assistant":
+            return []
+
+        text = _extract_content(payload.get("content", ""))
+        if text:
+            return [{"role": "assistant", "text": text, "source": source}]
+        return []
+
+    # 其他 session 包装类型一律忽略
+    if top_type in {"session_meta", "turn_context"}:
+        return []
+
+    return None
 
 
 def parse_plain_text(text: str, source: str = "") -> list[dict]:

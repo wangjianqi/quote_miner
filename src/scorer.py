@@ -10,7 +10,7 @@ scorer.py — 基于规则的句子打分引擎
   6. 第一人称工程表达加分
   7. 组合命中额外加分（约束词+动作词 / 动作词+风险词）
   8. 含逗号/分句适度加分
-  9. 纯英文弱化（中文语境为主）
+  9. 中英双语支持
 """
 
 import re
@@ -37,6 +37,16 @@ CONSTRAINT_WORDS = [
     "以不变应万变", "按现有", "沿用", "复用现有", "基于现状",
     "必要时", "兜住", "卡住", "守住", "先保住",
     "不暴漏",
+    "avoid", "keep", "preserve", "minimize", "minimal",
+    "as is", "for now", "first", "prefer", "prefer to",
+    "do not change", "don't change", "do not touch", "don't touch",
+    "do not expose", "do not leak", "do not break",
+    "without changing", "without breaking", "without introducing",
+    "only", "only change", "only handle", "only in", "just",
+    "non-invasive", "low-invasive", "minimal change", "minimal impact",
+    "keep compatibility", "backward compatible", "preserve behavior",
+    "preserve semantics", "stay compatible", "limit the scope",
+    "within the boundary", "reuse existing", "based on existing",
 ]
 
 # 动作词：工程操作动词
@@ -57,6 +67,15 @@ ACTION_WORDS = [
     "缓存", "预热", "削峰", "填谷", "分流", "路由", "降噪",
     "观测", "监控", "埋点", "校验", "校验掉", "判空", "判重",
     "清理", "清退", "收回", "关闭", "封禁", "止血",
+    "wrap", "encapsulate", "extract", "isolate", "migrate", "replace",
+    "sink", "lift", "move", "split", "merge", "converge",
+    "refactor", "decouple", "abstract", "align", "normalize",
+    "switch", "toggle", "degrade", "fallback", "rollback",
+    "optimize", "trim", "simplify", "adapt", "patch", "fix",
+    "guard", "intercept", "short-circuit", "reroute", "fan out",
+    "route", "cache", "warm up", "throttle", "rate limit",
+    "monitor", "observe", "instrument", "validate", "dedupe",
+    "cleanup", "sunset", "deprecate", "stabilize",
 ]
 
 # 风险词：表达风险意识
@@ -77,6 +96,16 @@ RISK_WORDS = [
     "暴露", "泄露", "入侵", "攻击面", "信任边界",
     "回归", "回归风险", "历史包袱", "存量", "老逻辑", "遗留",
     "破窗", "踩坑", "坑", "成本", "维护成本", "心智负担",
+    "risk", "blast radius", "rollback", "fallback", "boundary",
+    "side effect", "breaking change", "compatibility", "stable", "stability",
+    "failure", "error", "timeout", "latency", "jitter", "outage",
+    "exception", "crash", "leak", "data leak", "pollution",
+    "inconsistent", "consistency", "idempotent", "duplicate", "reorder",
+    "concurrency", "race condition", "deadlock", "blocking",
+    "throughput", "capacity", "bottleneck", "hotspot", "backlog",
+    "security", "privacy", "permission", "auth", "authorization",
+    "monitoring", "alert", "observability", "legacy", "regression",
+    "maintenance cost", "cognitive load",
 ]
 
 # 架构词：表达架构层面的思考
@@ -85,6 +114,11 @@ ARCH_WORDS = [
     "manager", "gateway", "handler", "provider", "factory", "registry",
     "middleware", "client", "server", "model", "entity", "aggregate",
     "application", "infra", "infrastructure", "port", "usecase",
+    "use case", "boundary", "context", "contract", "semantic", "semantics",
+    "module", "component", "layer", "domain model", "data model",
+    "object model", "application layer", "domain layer", "data layer",
+    "service layer", "adapter layer", "gateway layer", "extension point",
+    "pipeline", "orchestration", "runtime", "platform", "kernel",
     "接口", "协议", "层", "实现层", "调用层", "服务层", "数据层",
     "展示层", "接入层", "网关层", "领域层", "应用层", "模型层",
     "基础设施", "领域", "聚合", "上下文", "边界", "边界条件",
@@ -110,13 +144,26 @@ FIRST_PERSON_ENGINEERING = [
     "这一版", "这一轮", "这版", "当前这版", "当前这个版本",
     "第一刀", "第一步", "第二步", "这一步", "下一步",
     "我这里第一刀", "我这里先", "这次先", "这轮先",
+    "i want to", "i want", "i plan to", "i need to", "i would",
+    "i'd rather", "i would rather", "i prefer to", "i'm leaning toward",
+    "i think", "i believe", "i feel", "i guess", "i worry",
+    "my plan", "my approach", "my thinking", "my take", "my conclusion",
+    "first step", "second step", "for this round", "for now",
 ]
 
 # ── 正则编译 ────────────────────────────────────────────────────────────
 
 def _build_pattern(words: list[str]) -> re.Pattern:
-    escaped = [re.escape(w) for w in sorted(words, key=len, reverse=True)]
-    return re.compile("|".join(escaped), re.I)
+    patterns = []
+    for word in sorted(set(words), key=len, reverse=True):
+        if re.fullmatch(r"[A-Za-z0-9_./+-]+(?: [A-Za-z0-9_./+-]+)*", word):
+            parts = [re.escape(part) for part in word.split()]
+            patterns.append(
+                rf"(?<![A-Za-z0-9_]){r'\s+'.join(parts)}(?![A-Za-z0-9_])"
+            )
+        else:
+            patterns.append(re.escape(word))
+    return re.compile("|".join(patterns), re.I)
 
 _PAT_CONSTRAINT = _build_pattern(CONSTRAINT_WORDS)
 _PAT_ACTION = _build_pattern(ACTION_WORDS)
@@ -184,10 +231,5 @@ def score_sentence(sent: str) -> float:
         score += 0.5
     if clause_count >= 2:
         score += 0.5
-
-    # 9. 纯英文弱化（中文工程对话为主场景）
-    chinese_chars = sum(1 for c in s if '\u4e00' <= c <= '\u9fff')
-    if chinese_chars == 0 and len(s) > 15:
-        score *= 0.6  # 纯英文降权
 
     return round(score, 2)
