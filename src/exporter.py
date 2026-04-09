@@ -3,8 +3,8 @@ exporter.py — 输出模块
 
 支持：
   - 终端彩色打印
-  - output/quotes.txt
-  - output/quotes.md
+  - 纯文本导出（含分类、score、role）
+  - Markdown 导出（仅金句正文，按类别分组）
 """
 
 from pathlib import Path
@@ -74,7 +74,7 @@ def export_txt(candidates: list[QuoteCandidate], path: Path) -> None:
 
 
 def export_md(candidates: list[QuoteCandidate], path: Path) -> None:
-    """导出为 Markdown 格式，按类别分组。"""
+    """导出为 Markdown 格式，按类别分组；仅输出金句正文，不含 score / role / 分类 emoji。"""
     # 按类别分组
     groups: dict[str, list[QuoteCandidate]] = {}
     for c in candidates:
@@ -84,21 +84,18 @@ def export_md(candidates: list[QuoteCandidate], path: Path) -> None:
     lines: list[str] = []
     lines.append("# 工程判断金句")
     lines.append("")
-    lines.append("> 从 Codex / Claude Code 对话日志中自动提取的工程决策句和风险控制句。")
+    lines.append("> 从 Codex / Claude Code / Cursor 对话日志中自动提取。")
     lines.append("")
 
     for cat in category_order:
         if cat not in groups:
             continue
         label = _CATEGORY_LABEL.get(cat, cat)
-        emoji = _CATEGORY_EMOJI.get(cat, "")
-        lines.append(f"## {emoji}{label}")
+        lines.append(f"## {label}")
         lines.append("")
 
         for c in groups[cat]:
             lines.append(f"> {c.text}")
-            lines.append(f">")
-            lines.append(f"> `score={c.score:.1f}` `{c.role}`")
             lines.append("")
 
     path.write_text("\n".join(lines), encoding="utf-8")

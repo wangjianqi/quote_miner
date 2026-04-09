@@ -124,12 +124,12 @@ usage: main.py [-h] (--input FILE | --source {codex,claude,cursor})
 
 ## 输出文件
 
-运行后自动在 `output/` 目录生成：
+运行后自动在 `output/` 目录生成带时间戳的文件（不覆盖历史导出），例如 `quotes_2026-04-09_143052.txt`：
 
 | 文件 | 说明 |
 |------|------|
-| `quotes.txt` | 纯文本格式，含分类和评分 |
-| `quotes.md` | Markdown 格式，按类别分组 |
+| `quotes_YYYY-MM-DD_HHMMSS.txt` | 纯文本格式，含分类、score、role |
+| `quotes_YYYY-MM-DD_HHMMSS.md` | Markdown，按类别分组，仅金句正文（无 score/role） |
 | `social_card.png` | 社交分享卡片（`--render-card` 时生成） |
 
 ---
@@ -166,8 +166,8 @@ quote_miner/
 │   ├── sample_chat.txt      # 示例纯文本对话
 │   └── sample_chat.jsonl    # 示例 JSONL 日志
 └── output/                  # 运行后自动生成
-    ├── quotes.txt
-    ├── quotes.md
+    ├── quotes_YYYY-MM-DD_HHMMSS.txt
+    ├── quotes_YYYY-MM-DD_HHMMSS.md
     └── social_card.png
 ```
 
