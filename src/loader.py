@@ -10,11 +10,12 @@ loader.py — 从不同来源加载原始消息块
 """
 
 import json
+import sqlite3
 import sys
 import warnings
 from pathlib import Path
 
-from src.parser import parse_jsonl_line, parse_plain_text
+from src.parser import _extract_content, parse_jsonl_line, parse_plain_text
 
 
 def load_from_file(path: Path) -> list[dict]:
@@ -96,8 +97,6 @@ def _cursor_storage_dirs() -> list[Path]:
 
 def _load_cursor_db(db_path: Path) -> list[dict]:
     """从单个 Cursor state.vscdb 数据库中解析消息块。"""
-    import sqlite3
-
     blocks: list[dict] = []
     try:
         conn = sqlite3.connect(f"file:{db_path}?immutable=1", uri=True)
@@ -112,10 +111,168 @@ def _load_cursor_db(db_path: Path) -> list[dict]:
                 continue
             blocks.extend(_extract_from_cursor_table(cursor, tbl, str(db_path)))
 
+        blocks.extend(_extract_cursor_kv_stores(conn, str(db_path)))
         conn.close()
     except sqlite3.Error as e:
         warnings.warn(f"无法读取 Cursor 数据库 {db_path}: {e}")
     return blocks
+
+
+def _cursor_blob_to_text(raw) -> str | None:
+    if raw is None:
+        return None
+    if isinstance(raw, str):
+        return raw
+    if isinstance(raw, (bytes, bytearray, memoryview)):
+        return bytes(raw).decode("utf-8", errors="replace")
+    return None
+
+
+def _extract_cursor_kv_stores(conn: sqlite3.Connection, source: str) -> list[dict]:
+    """
+    Cursor / VS Code 将状态存在 ItemTable(key, value) 与 cursorDiskKV。
+    从已知键与嵌套 JSON 结构中抽取对话文本。
+    """
+    blocks: list[dict] = []
+    for table in ("ItemTable", "cursorDiskKV"):
+        try:
+            cur = conn.execute(
+                "SELECT 1 FROM sqlite_master WHERE type='table' AND name=? LIMIT 1",
+                (table,),
+            )
+            if not cur.fetchone():
+                continue
+            rows = conn.execute(f"SELECT key, value FROM {table}").fetchall()
+        except sqlite3.Error:
+            continue
+        for key, raw_val in rows:
+            if not key:
+                continue
+            blocks.extend(_blocks_from_cursor_kv_row(str(key), raw_val, source))
+    return blocks
+
+
+def _blocks_from_cursor_kv_row(key: str, raw_val, source: str) -> list[dict]:
+    blocks: list[dict] = []
+    text = _cursor_blob_to_text(raw_val)
+    if not text or not text.strip():
+        return blocks
+
+    if key == "aiService.prompts":
+        try:
+            arr = json.loads(text)
+        except json.JSONDecodeError:
+            return blocks
+        if isinstance(arr, list):
+            for item in arr:
+                if isinstance(item, dict):
+                    t = item.get("text")
+                    if isinstance(t, str) and t.strip():
+                        blocks.append({"role": "user", "text": t.strip(), "source": source})
+        return blocks
+
+    if key == "aiService.generations":
+        try:
+            arr = json.loads(text)
+        except json.JSONDecodeError:
+            return blocks
+        if isinstance(arr, list):
+            for item in arr:
+                if not isinstance(item, dict):
+                    continue
+                t = item.get("textDescription")
+                if isinstance(t, str) and t.strip():
+                    blocks.append({"role": "user", "text": t.strip(), "source": source})
+        return blocks
+
+    # 避免把 Composer / 面板状态元数据误解析
+    if key.startswith("composer.") or key.startswith("workbench.panel.composerChatViewPane"):
+        return blocks
+
+    stripped = text.strip()
+    if not stripped.startswith(("{", "[")):
+        return blocks
+    if len(stripped) > 2_000_000:
+        return blocks
+
+    try:
+        obj = json.loads(stripped)
+    except json.JSONDecodeError:
+        return blocks
+
+    # 仅对可能含对话结构的键做递归（降低噪音）
+    kl = key.lower()
+    chat_hint = any(
+        s in kl
+        for s in (
+            "aichat",
+            "aicomposer",
+            "composerdata",
+            "chatgpt",
+            "gemini",
+            "conversation",
+            "bubble",
+        )
+    )
+    if chat_hint:
+        budget = [400]
+        _walk_cursor_chat_json(obj, source, blocks, depth=0, budget=budget)
+
+    return blocks
+
+
+_CURSOR_RECURSE_KEYS = frozenset(
+    {
+        "messages",
+        "bubbles",
+        "turns",
+        "conversation",
+        "history",
+        "chatMessages",
+        "parts",
+        "children",
+        "data",
+    }
+)
+
+
+def _walk_cursor_chat_json(obj, source: str, blocks: list[dict], depth: int, budget: list[int]) -> None:
+    if budget[0] <= 0 or depth > 14:
+        return
+
+    if isinstance(obj, dict):
+        if obj.get("type") == "message" and "role" in obj:
+            role = _normalize_role(str(obj.get("role", "unknown")))
+            body = _extract_content(obj.get("content", ""))
+            if body.strip():
+                blocks.append({"role": role, "text": body.strip(), "source": source})
+                budget[0] -= 1
+            return
+
+        if "message" in obj and isinstance(obj["message"], dict):
+            msg = obj["message"]
+            role = _normalize_role(str(msg.get("role", "unknown")))
+            body = _extract_content(msg.get("content", ""))
+            if body.strip():
+                blocks.append({"role": role, "text": body.strip(), "source": source})
+                budget[0] -= 1
+            return
+
+        if "role" in obj and ("content" in obj or "text" in obj):
+            role = _normalize_role(str(obj.get("role", "unknown")))
+            body = _extract_content(obj.get("content", obj.get("text", "")))
+            if body.strip():
+                blocks.append({"role": role, "text": body.strip(), "source": source})
+                budget[0] -= 1
+
+        for k, v in obj.items():
+            if k in _CURSOR_RECURSE_KEYS or (
+                isinstance(v, (list, dict)) and k in ("response", "assistantResponse", "result")
+            ):
+                _walk_cursor_chat_json(v, source, blocks, depth + 1, budget)
+    elif isinstance(obj, list):
+        for item in obj:
+            _walk_cursor_chat_json(item, source, blocks, depth + 1, budget)
 
 
 def _extract_from_cursor_table(cursor, table: str, source: str) -> list[dict]:

@@ -1,6 +1,6 @@
 # quote_miner
 
-> 从 Codex / Claude Code 对话日志中自动提取「工程判断金句」
+> 从 Codex / Claude Code / Cursor 对话日志中自动提取「工程判断金句」
 
 不做词云，不做摘要——只从原始对话中筛选出**本身就像工程师做判断时说的话**的句子，保留原话风格，直接可用于社交平台分享。
 
@@ -56,6 +56,9 @@ python main.py --source codex
 
 # 自动扫描 Claude Code 日志（~/.claude/）
 python main.py --source claude
+
+# 自动扫描 Cursor 本地状态（workspaceStorage / globalStorage 下所有 state.vscdb）
+python main.py --source cursor
 ```
 
 ### 过滤选项
@@ -92,7 +95,7 @@ python main.py --input chat.txt --output-dir my_output
 | `--input file.jsonl` | JSONL 格式日志（Codex / Claude Code 原始格式） |
 | `--source codex` | 自动扫描 `~/.codex/sessions/` 下所有 jsonl |
 | `--source claude` | 自动扫描 `~/.claude/` 下所有 jsonl 和 txt |
-| `--source cursor` | 自动扫描 `~/.config/Cursor/User/workspaceStorage/` 下所有 SQLite state.vscdb |
+| `--source cursor` | 自动扫描 Cursor 的 `User/workspaceStorage/` 与 `User/globalStorage/` 下所有 `state.vscdb`（macOS：`~/Library/Application Support/Cursor/...`；Linux：`~/.config/Cursor/...`） |
 
 ---
 
@@ -151,7 +154,7 @@ quote_miner/
 ├── README.md
 ├── src/
 │   ├── models.py            # QuoteCandidate dataclass
-│   ├── loader.py            # 数据加载（文件 / codex / claude）
+│   ├── loader.py            # 数据加载（文件 / codex / claude / cursor）
 │   ├── parser.py            # JSONL / 纯文本解析
 │   ├── sentence_splitter.py # 文本切句
 │   ├── filters.py           # 噪音过滤
